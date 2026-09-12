@@ -1,3 +1,3 @@
-module github.com/andersonreyes/lox-interpreter-improved
+module github.com/andersonreyes/lox
 
 go 1.26.4

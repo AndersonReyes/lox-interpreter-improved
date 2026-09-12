@@ -1,18 +1,18 @@
 package main
 
-
 import (
-	"fmt"
-	"os"
 	"bufio"
+	"fmt"
+	lox "github.com/andersonreyes/lox/internal"
+	"os"
 	"strings"
 )
 
 type builtInCommand = string
-const  (
+
+const (
 	commandExit builtInCommand = ":exit"
 )
-
 
 func runFile(file string) {
 	fmt.Printf("Running file %s\n", file)
@@ -20,28 +20,31 @@ func runFile(file string) {
 
 func runRepl() {
 	fmt.Println("Welcome to the jlox repl!\n")
-	scanner := bufio.NewScanner(os.Stdin)
+	inputReader := bufio.NewScanner(os.Stdin)
 
 	fmt.Print("> ")
-	for scanner.Scan() {
-		if err := scanner.Err(); err != nil {
+	for inputReader.Scan() {
+		if err := inputReader.Err(); err != nil {
 			fmt.Fprintln(os.Stderr, "reading standard input:", err)
 
 		} else {
-			line := scanner.Text()
+			line := inputReader.Text()
 
 			if strings.Compare(line, commandExit) == 0 {
 				break
 			}
 
-			fmt.Println(scanner.Text())
+			fmt.Println(line)
+			err := lox.ScanTokens(bufio.NewReader(strings.NewReader(line)))
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
+
 			fmt.Print("> ")
 		}
-
 	}
 	fmt.Println("goodbye!")
 }
-
 
 func main() {
 	args := os.Args
