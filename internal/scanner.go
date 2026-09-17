@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strings"
 )
 
 type TokenType int
@@ -64,68 +63,202 @@ const (
 type Token struct {
 	tokType TokenType
 	lexeme  string
-	literal string // TODO can we store the actual type here?
 	line    int
 }
 
-func getTokenType(ch string) TokenType {
-	switch ch {
+type Scanner struct {
+	reader *bufio.Reader
+}
+
+func NewScanner(reader *bufio.Reader) *Scanner {
+	return &Scanner{reader: reader}
+}
+
+func (s *Scanner) parseToken(line int, currChar string, nextChar string) (*Token, error) {
+
+	switch currChar {
 	case "(":
-		return TokenTypeLeftParen
+		return &Token{
+			tokType: TokenTypeLeftParen,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case ")":
-		return TokenTypeRightParen
+		return &Token{
+			tokType: TokenTypeRightParen,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case "{":
-		return TokenTypeLeftBrace
+		return &Token{
+			tokType: TokenTypeLeftBrace,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case "}":
-		return TokenTypeRightBrace
+		return &Token{
+			tokType: TokenTypeRightBrace,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case ",":
-		return TokenTypeComma
+		return &Token{
+			tokType: TokenTypeComma,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case ".":
-		return TokenTypeDot
+		return &Token{
+			tokType: TokenTypeDot,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case "-":
-		return TokenTypeMinus
+		return &Token{
+			tokType: TokenTypeMinus,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case "+":
-		return TokenTypePlus
+		return &Token{
+			tokType: TokenTypePlus,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case ";":
-		return TokenTypeSemicolon
+		return &Token{
+			tokType: TokenTypeSemicolon,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
 	case "*":
-		return TokenTypeStar
+		return &Token{
+			tokType: TokenTypeStar,
+			lexeme:  currChar,
+			line:    line,
+		}, nil
+	case "!":
+		if nextChar == "=" {
+			// consume nextChar
+			_, _, _ = s.consume()
+			return &Token{
+				tokType: TokenTypeBangEqual,
+				lexeme:  "!=",
+				line:    line,
+			}, nil
+		} else {
+			return &Token{
+				tokType: TokenTypeBang,
+				lexeme:  currChar,
+				line:    line,
+			}, nil
+		}
+	case "=":
+		if nextChar == "=" {
+			// consume nextChar
+			_, _, _ = s.consume()
+			return &Token{
+				tokType: TokenTypeEqualEqual,
+				lexeme:  "==",
+				line:    line,
+			}, nil
+		} else {
+			return &Token{
+				tokType: TokenTypeEqual,
+				lexeme:  currChar,
+				line:    line,
+			}, nil
+		}
+	case "<":
+		if nextChar == "=" {
+			// consume nextChar
+			_, _, _ = s.consume()
+			return &Token{
+				tokType: TokenTypeLessEqual,
+				lexeme:  "<=",
+				line:    line,
+			}, nil
+		} else {
+			return &Token{
+				tokType: TokenTypeLess,
+				lexeme:  currChar,
+				line:    line,
+			}, nil
+		}
+	case ">":
+		if nextChar == "=" {
+			// consume nextChar
+			_, _, _ = s.consume()
+			return &Token{
+				tokType: TokenTypeGreaterEqual,
+				lexeme:  ">=",
+				line:    line,
+			}, nil
+		} else {
+			return &Token{
+				tokType: TokenTypeGreater,
+				lexeme:  currChar,
+				line:    line,
+			}, nil
+		}
 	default:
-		return TokenTypeUnrecognized
+		return nil, reportError(line, currChar, "invalid character")
 	}
 }
 
-func ScanTokens(reader *bufio.Reader) error {
-	line := 0
+func (s *Scanner) consume() (string, string, error) {
+	r, _, err := s.reader.ReadRune()
+
+	currChar := string(r)
+	if err != nil {
+		if err == io.EOF {
+			return "", "", err
+		} else {
+			return "", "", errors.Join(err, fmt.Errorf("invalid token %s", currChar))
+
+		}
+	}
+
+	nextRune, _, err := s.reader.ReadRune()
+	nextChar := string(nextRune)
+	if err != nil {
+		if err == io.EOF {
+			return currChar, "", nil
+		} else {
+			return "", "", errors.Join(err, fmt.Errorf("invalid next token %s", nextChar))
+		}
+	}
+
+	// Move the cursor back since we just want to peek at the next rune
+	if err := s.reader.UnreadRune(); err != nil {
+		return "", "", errors.Join(err, errors.New("failed to unread rune"))
+	}
+
+	return currChar, nextChar, nil
+}
+
+func (s *Scanner) Scan() error {
+	line := 1
 	for {
-		r, _, err := reader.ReadRune()
+		currChar, nextChar, err := s.consume()
 
 		if err == io.EOF {
 			break
 		}
-		ch := string(r)
-		if err != nil {
-			return reportError(line, "scanner", "invalid token "+ch)
-		}
 
-		tokType := getTokenType(ch)
-		if tokType == TokenTypeUnrecognized {
-			return errors.Join(err, reportError(line, ch, "unrecognized character"))
-		}
-
-		token := Token{
-			tokType: tokType,
-			lexeme:  ch,
-			literal: ch,
-			line:    line,
-		}
-
-		fmt.Printf("Token: %+v\n", token)
-
-		if strings.Compare(ch, "\n") == 0 {
+		if currChar == "\n" {
 			line += 1
 			continue
 		}
+
+		// fmt.Printf("Current, next and line %s -> %s at line %d", currChar, nextChar, line)
+		tok, err := s.parseToken(line, currChar, nextChar)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Token: %+v\n", tok)
+
 	}
 
 	return nil
