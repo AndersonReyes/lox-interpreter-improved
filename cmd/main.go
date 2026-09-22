@@ -3,10 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
-	lox "github.com/andersonreyes/lox/internal"
 	"log"
 	"os"
 	"strings"
+
+	lox "github.com/andersonreyes/lox/internal"
 )
 
 type builtInCommand = string
@@ -28,12 +29,12 @@ func runFile(file string) {
 
 	err = scanner.Scan()
 	if err != nil {
-		log.Fatalf("error scanning file: %v\n", err)
+		log.Fatalf("error scanning file: %s\n", file)
 	}
 }
 
 func runRepl() {
-	fmt.Println("Welcome to the jlox repl!\n")
+	fmt.Println("Welcome to the jlox repl!")
 	inputReader := bufio.NewScanner(os.Stdin)
 
 	fmt.Print("> ")
@@ -54,7 +55,7 @@ func runRepl() {
 			scanner := lox.NewScanner(r)
 			err := scanner.Scan()
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				fmt.Printf("error interpreting line %s\n", line)
 			}
 
 			fmt.Print("> ")
