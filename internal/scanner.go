@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 const numberParts = ".0123456789"
+
+var alphanumRe = regexp.MustCompile(`^[_a-zA-Z0-9]`)
 
 type TokenType string
 
@@ -42,30 +45,49 @@ const (
 	TokenTypeQuestionMark = "?"
 
 	// KEYWORDS
-	TokenTypeAnd    = "CondAnd"
-	TokenTypeClass  = "Class"
-	TokenTypeElse   = "CondElse"
-	TokenTypeFalse  = "False"
-	TokenTypeFun    = "Function"
-	TokenTypeFor    = "LoopFor"
-	TokenTypeIf     = "CondIf"
-	TokenTypeNil    = "Nil"
-	TokenTypeOr     = "CondOr"
-	TokenTypePrint  = "Print"
-	TokenTypeReturn = "Return"
-	TokenTypeSuper  = "Super"
-	TokenTypeThis   = "This"
-	TokenTypeTrue   = "True"
-	TokenTypeVar    = "Var"
-	TokenTypeWhile  = "While"
-	TokenTypeEof    = "Eof"
+	TokenTypeAnd    = "and"
+	TokenTypeClass  = "class"
+	TokenTypeElse   = "else"
+	TokenTypeFalse  = "false"
+	TokenTypeFun    = "fun"
+	TokenTypeFor    = "for"
+	TokenTypeIf     = "if"
+	TokenTypeNil    = "nil"
+	TokenTypeOr     = "or"
+	TokenTypePrint  = "print"
+	TokenTypeReturn = "return"
+	TokenTypeSuper  = "super"
+	TokenTypeThis   = "this"
+	TokenTypeTrue   = "true"
+	TokenTypeVar    = "var"
+	TokenTypeWhile  = "while"
 
 	// to detect errors / invalid tokens
 	TokenTypeUnrecognized = "Unknown"
 
 	TokenTypeComment = "Comment"
 	TokenTypeIgnore  = "IgnoreThisChar"
+	TokenTypeEof     = "Eof"
 )
+
+var keywords = map[string]TokenType{
+	TokenTypeAnd:    TokenTypeAnd,
+	TokenTypeClass:  TokenTypeClass,
+	TokenTypeElse:   TokenTypeElse,
+	TokenTypeFalse:  TokenTypeFalse,
+	TokenTypeFun:    TokenTypeFun,
+	TokenTypeFor:    TokenTypeFor,
+	TokenTypeIf:     TokenTypeIf,
+	TokenTypeNil:    TokenTypeNil,
+	TokenTypeOr:     TokenTypeOr,
+	TokenTypePrint:  TokenTypePrint,
+	TokenTypeReturn: TokenTypeReturn,
+	TokenTypeSuper:  TokenTypeSuper,
+	TokenTypeThis:   TokenTypeThis,
+	TokenTypeTrue:   TokenTypeTrue,
+	TokenTypeVar:    TokenTypeVar,
+	TokenTypeWhile:  TokenTypeWhile,
+}
 
 type Token struct {
 	tokType TokenType
@@ -270,7 +292,40 @@ func (s *Scanner) parseToken(line int, currChar string, nextChar string) (*Token
 			line:    line,
 		}, nil
 	default:
-		return nil, reportError(line, currChar, "invalid character")
+		if alphanumRe.MatchString(currChar) {
+			builder := strings.Builder{}
+			builder.WriteString(currChar)
+
+			for {
+				c, _, err := s.consume()
+
+				if err != nil {
+					return nil, reportError(line, currChar, "error parsing Identifier")
+				}
+
+				// log.Printf("default: builder=%s, %s=%t", builder.String(), c, alphanumRe.MatchString(c))
+
+				if !alphanumRe.MatchString(c) {
+					break
+				}
+
+				builder.WriteString(c)
+			}
+			lexeme := builder.String()
+
+			tokType, is_keyword := keywords[lexeme]
+			if !is_keyword {
+				tokType = TokenTypeIdentifier
+			}
+
+			return &Token{
+				tokType: tokType,
+				lexeme:  lexeme,
+				line:    line,
+			}, nil
+		} else {
+			return nil, reportError(line, currChar, "invalid character")
+		}
 	}
 }
 
