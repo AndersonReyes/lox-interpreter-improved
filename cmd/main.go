@@ -29,10 +29,12 @@ func runFile(file string) {
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
-		log.Fatalf("error scanning file: %s\n", file)
+		log.Fatalf("error scanning file: %s, %+v\n", file, err)
 	}
 
-	fmt.Printf("ALl Tokens:\n %+v\n", tokens)
+	for _, tok := range tokens {
+		fmt.Printf("Token:\n %+v\n", tok)
+	}
 }
 
 func runRepl() {

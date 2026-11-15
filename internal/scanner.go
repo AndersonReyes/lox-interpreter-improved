@@ -105,6 +105,7 @@ type Scanner struct {
 }
 
 func NewScanner(reader *bufio.Reader) *Scanner {
+	log.Printf("")
 	s := &Scanner{reader: reader, currentLine: 1}
 	// move the scanner to populate curr and next chars for the first time
 	_ = s.consume()
@@ -123,13 +124,13 @@ func (s *Scanner) parseToken() (*Token, error) {
 		}
 
 		// consume the unwanted chars
-		_ = s.consume()
+		err := s.consume()
 		if s.currChar == "\n" {
 			s.currentLine += 1
 			s.currentColumn = 1
 		}
 
-		return tok, nil
+		return tok, err
 
 	case "(":
 		return &Token{
@@ -432,18 +433,20 @@ func (s *Scanner) parseString() (string, error) {
 	for {
 		err := s.consume()
 		if err != nil && err != io.EOF {
-			return "", reportError(s.currentLine, s.currentColumn, builder.String(), "invalid string.")
+			return "",errors.Join(err,  reportError(s.currentLine, s.currentColumn, builder.String(), "invalid string."))
 		}
 		//log.Printf("string] c={%s}, nextcurrent={%s}, line: %d\n", s.currChar, s.nextChar, s.currentLine)
 
 		if s.currChar == "\"" {
+			// consume closing quote
+			_ = s.consume()
 			break
 		}
 
 		builder.WriteString(s.currChar)
 
 		if err == io.EOF {
-			return "", reportError(s.currentLine, s.currentColumn, builder.String(), "unterminated string.")
+			return "",errors.Join(err,  reportError(s.currentLine, s.currentColumn, builder.String(), "unterminated string."))
 		}
 	}
 
@@ -469,20 +472,11 @@ func (s *Scanner) consume() error {
 }
 
 func (s *Scanner) Scan() (*Token, error) {
-	// log.Printf("before] c={%s}, nextcurrent={%s}, line: %d\n", s.currChar, s.nextChar, s.currentLine)
-
-	// fmt.Printf("Current, next and line %s -> %s at line %d", currChar, nextChar, line)
 	tok, err := s.parseToken()
-	// log.Printf("after] c={%s}, nextcurrent={%s}, line: %d, err=%+v\n", s.currChar, s.nextChar, s.currentLine, err)
 	if err != nil {
 		return nil, err
 	}
 
-	//err = s.consume()
-
-	//if err != nil {
-	//	return nil, err
-	//}
 	return tok, nil
 
 }
@@ -491,11 +485,12 @@ func (s *Scanner) ScanAll() ([]*Token, error) {
 	tokens := []*Token{}
 	for {
 		tok, err := s.Scan()
+
 		if err == io.EOF {
 			break
 		}
 
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 
@@ -507,6 +502,6 @@ func (s *Scanner) ScanAll() ([]*Token, error) {
 
 func reportError(line int, column int, where string, message string) error {
 	msg := fmt.Sprintf("[line %d, column %d] Error near \"%s\": %s", line, column, where, message)
-	log.Print(msg)
+	//log.Print(msg)
 	return errors.New(msg)
 }

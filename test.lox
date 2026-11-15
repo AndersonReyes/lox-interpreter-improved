@@ -1,13 +1,9 @@
 "this is
 
 a string"
-
 124.344
 .12312
-012
-_thisi34343sidentifier
-his343543sdfsdf
-
-or
-for
-while
+// this is a comment
+/* This is a nother 
+* block comment
+*/
