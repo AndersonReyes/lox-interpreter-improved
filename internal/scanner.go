@@ -105,7 +105,7 @@ type Scanner struct {
 }
 
 func NewScanner(reader *bufio.Reader) *Scanner {
-	log.Printf("")
+	_ = log.Flags()
 	s := &Scanner{reader: reader, currentLine: 1}
 	// move the scanner to populate curr and next chars for the first time
 	_ = s.consume()
@@ -123,12 +123,12 @@ func (s *Scanner) parseToken() (*Token, error) {
 			line:    s.currentLine,
 		}
 
-		// consume the unwanted chars
-		err := s.consume()
 		if s.currChar == "\n" {
 			s.currentLine += 1
 			s.currentColumn = 1
 		}
+		// consume the unwanted chars
+		err := s.consume()
 
 		return tok, err
 
@@ -287,6 +287,7 @@ func (s *Scanner) parseToken() (*Token, error) {
 
 			for {
 				err := s.consume()
+
 				// log.Printf("comment] c={%s}, nextcurrent={%s}, line: %d, err=%+v, is block comment=%v\n", s.currChar, s.nextChar, s.currentLine, err, isBlockComment)
 
 				// check if we are at the end, or if it's a block comment end or new line if its not a block comment
@@ -297,15 +298,22 @@ func (s *Scanner) parseToken() (*Token, error) {
 				if isBlockComment && s.currChar == "*" && s.nextChar == "/" {
 					// skep the next two chars since we are already including it in the builder above
 					_ = s.consume()
+					_ = s.consume()
 					break
 				}
 
-				if err != nil {
-					return nil, reportError(s.currentLine,s.currentColumn, s.currChar, "invalid comment character")
+				if err != nil && err != io.EOF {
+					return nil, errors.Join(err, reportError(s.currentLine, s.currentColumn, s.currChar, "invalid comment character"))
 				}
 
 				builder.WriteString(s.currChar)
+
+				if err == io.EOF {
+					break
+				}
 			}
+
+			// log.Printf("Found comment: %s", builder.String())
 
 			return &Token{
 				tokType: TokenTypeComment,
@@ -363,6 +371,7 @@ func (s *Scanner) parseToken() (*Token, error) {
 				builder.WriteString(s.currChar)
 
 				if err == io.EOF {
+					_ = s.consume()
 					break
 				}
 			}
@@ -379,7 +388,7 @@ func (s *Scanner) parseToken() (*Token, error) {
 				line:    s.currentLine,
 			}, nil
 		} else {
-			return nil, reportError(s.currentLine, s.currentColumn, s.currChar, "invalid character")
+			return nil, io.EOF
 		}
 	}
 }
@@ -410,6 +419,7 @@ func (s *Scanner) parseNumber(prefix string) (string, error) {
 		builder.WriteString(s.currChar)
 
 		if err == io.EOF {
+			_ = s.consume()
 			break
 		}
 	}
@@ -425,6 +435,7 @@ func (s *Scanner) parseNumber(prefix string) (string, error) {
 	if strings.HasSuffix(numStr, ".") {
 		return "", reportError(s.currentLine, s.currentColumn, builder.String(), "number ends with a period")
 	}
+	// log.Printf("parse number: c %s, n %s, numstr %s", s.currChar, s.nextChar, numStr)
 	return numStr, nil
 }
 
@@ -433,7 +444,7 @@ func (s *Scanner) parseString() (string, error) {
 	for {
 		err := s.consume()
 		if err != nil && err != io.EOF {
-			return "",errors.Join(err,  reportError(s.currentLine, s.currentColumn, builder.String(), "invalid string."))
+			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "invalid string."))
 		}
 		//log.Printf("string] c={%s}, nextcurrent={%s}, line: %d\n", s.currChar, s.nextChar, s.currentLine)
 
@@ -446,7 +457,7 @@ func (s *Scanner) parseString() (string, error) {
 		builder.WriteString(s.currChar)
 
 		if err == io.EOF {
-			return "",errors.Join(err,  reportError(s.currentLine, s.currentColumn, builder.String(), "unterminated string."))
+			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "unterminated string."))
 		}
 	}
 
