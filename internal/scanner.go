@@ -7,13 +7,11 @@ import (
 	"io"
 	"log"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
-const numberParts = ".0123456789"
-
 var alphanumRe = regexp.MustCompile(`^[_a-zA-Z0-9]`)
+var digitOrPeriod = regexp.MustCompile(`^[0-9\.]`)
 
 type TokenType string
 
@@ -97,126 +95,121 @@ type Token struct {
 }
 
 type Scanner struct {
-	reader        *bufio.Reader
 	currentLine   int
 	currentColumn int
-	currChar      string
-	nextChar      string
+	state         *ScannerState
 }
 
-func NewScanner(reader *bufio.Reader) *Scanner {
+func NewScanner(reader *bufio.Reader) (*Scanner, error) {
 	_ = log.Flags()
-	s := &Scanner{reader: reader, currentLine: 1}
-	// move the scanner to populate curr and next chars for the first time
-	_ = s.consume()
-	_ = s.consume()
-	return s
+	state, err := NewScannerState(reader)
+
+	if err != nil {
+		return nil, err
+	}
+	s := &Scanner{state: state, currentLine: 1}
+	return s, nil
 }
 
 func (s *Scanner) parseToken() (*Token, error) {
 
-	switch s.currChar {
+	switch s.state.Head() {
 	case "", " ", "\r", "\t", "\n":
 		tok := &Token{
 			tokType: TokenTypeIgnore,
-			lexeme:  s.currChar,
+			lexeme:  s.state.Head(),
 			line:    s.currentLine,
 		}
 
-		if s.currChar == "\n" {
+		if s.state.Head() == "\n" {
 			s.currentLine += 1
 			s.currentColumn = 1
 		}
-		// consume the unwanted chars
-		err := s.consume()
 
-		return tok, err
+		s.state.Skip(1)
+
+		return tok, nil
 
 	case "(":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeLeftParen,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case ")":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeRightParen,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case "{":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeLeftBrace,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case "}":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeRightBrace,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case ",":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeComma,
 			lexeme:  ",",
 			line:    s.currentLine,
 		}, nil
 	case ".":
-		if strings.Contains(numberParts, s.nextChar) {
-			num, err := s.parseNumber(s.currChar)
-			if err != nil {
-				return nil, err
-			}
-
-			return &Token{
-				tokType: TokenTypeNumber,
-				lexeme:  num,
-				line:    s.currentLine,
-			}, nil
-
-		} else {
-			return &Token{
-				tokType: TokenTypeDot,
-				lexeme:  ".",
-				line:    s.currentLine,
-			}, nil
-
-		}
+		s.state.Skip(1)
+		return &Token{
+			tokType: TokenTypeDot,
+			lexeme:  ".",
+			line:    s.currentLine,
+		}, nil
 	case "-":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeMinus,
 			lexeme:  "-",
 			line:    s.currentLine,
 		}, nil
 	case "+":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypePlus,
 			lexeme:  "+",
 			line:    s.currentLine,
 		}, nil
 	case ";":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeSemicolon,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case "*":
+		s.state.Skip(1)
 		return &Token{
 			tokType: TokenTypeStar,
 			lexeme:  "",
 			line:    s.currentLine,
 		}, nil
 	case "!":
-		if s.nextChar == "=" {
-			// consume nextChar
-			_ = s.consume()
+		if s.state.Peek() == "=" {
+			s.state.Skip(2)
 			return &Token{
 				tokType: TokenTypeBangEqual,
 				lexeme:  "",
 				line:    s.currentLine,
 			}, nil
 		} else {
+			s.state.Skip(1)
 			return &Token{
 				tokType: TokenTypeBang,
 				lexeme:  "",
@@ -224,15 +217,15 @@ func (s *Scanner) parseToken() (*Token, error) {
 			}, nil
 		}
 	case "=":
-		if s.nextChar == "=" {
-			// consume nextChar
-			_ = s.consume()
+		if s.state.Peek() == "=" {
+			s.state.Skip(2)
 			return &Token{
 				tokType: TokenTypeEqualEqual,
 				lexeme:  "",
 				line:    s.currentLine,
 			}, nil
 		} else {
+			s.state.Skip(1)
 			return &Token{
 				tokType: TokenTypeEqual,
 				lexeme:  "",
@@ -240,15 +233,15 @@ func (s *Scanner) parseToken() (*Token, error) {
 			}, nil
 		}
 	case "<":
-		if s.nextChar == "=" {
-			// consume nextChar
-			_ = s.consume()
+		if s.state.Peek() == "=" {
+			s.state.Skip(2)
 			return &Token{
 				tokType: TokenTypeLessEqual,
 				lexeme:  "",
 				line:    s.currentLine,
 			}, nil
 		} else {
+			s.state.Skip(1)
 			return &Token{
 				tokType: TokenTypeLess,
 				lexeme:  "",
@@ -256,15 +249,15 @@ func (s *Scanner) parseToken() (*Token, error) {
 			}, nil
 		}
 	case ">":
-		if s.nextChar == "=" {
-			// consume nextChar
-			_ = s.consume()
+		if s.state.Peek() == "=" {
+			s.state.Skip(2)
 			return &Token{
 				tokType: TokenTypeGreaterEqual,
 				lexeme:  "",
 				line:    s.currentLine,
 			}, nil
 		} else {
+			s.state.Skip(1)
 			return &Token{
 				tokType: TokenTypeGreater,
 				lexeme:  "",
@@ -273,51 +266,16 @@ func (s *Scanner) parseToken() (*Token, error) {
 		}
 	case "/":
 		// Handle comments
-		if s.nextChar == "/" || s.nextChar == "*" {
-			// skip the slash or star for comment
-			isBlockComment := false
-			if s.nextChar == "*" {
-				isBlockComment = true
+		if s.state.Peek() == "/" || s.state.Peek() == "*" {
+			isBlock := s.state.Peek() == "*"
+			s.state.Skip(2)
+			block, err := s.parseComment(isBlock)
+			if err != nil {
+				return nil, err
 			}
-
-			_ = s.consume()
-
-			// this is a comment read until end of line
-			builder := strings.Builder{}
-
-			for {
-				err := s.consume()
-
-				// log.Printf("comment] c={%s}, nextcurrent={%s}, line: %d, err=%+v, is block comment=%v\n", s.currChar, s.nextChar, s.currentLine, err, isBlockComment)
-
-				// check if we are at the end, or if it's a block comment end or new line if its not a block comment
-				if !isBlockComment && s.currChar == "\n" {
-					break
-				}
-
-				if isBlockComment && s.currChar == "*" && s.nextChar == "/" {
-					// skep the next two chars since we are already including it in the builder above
-					_ = s.consume()
-					_ = s.consume()
-					break
-				}
-
-				if err != nil && err != io.EOF {
-					return nil, errors.Join(err, reportError(s.currentLine, s.currentColumn, s.currChar, "invalid comment character"))
-				}
-
-				builder.WriteString(s.currChar)
-
-				if err == io.EOF {
-					break
-				}
-			}
-
-			// log.Printf("Found comment: %s", builder.String())
-
 			return &Token{
 				tokType: TokenTypeComment,
-				lexeme:  builder.String(),
+				lexeme:  block,
 				line:    s.currentLine,
 			}, nil
 
@@ -340,7 +298,7 @@ func (s *Scanner) parseToken() (*Token, error) {
 			line:    s.currentLine,
 		}, nil
 	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
-		num, err := s.parseNumber(s.currChar)
+		num, err := s.parseNumber()
 		if err != nil {
 			return nil, err
 		}
@@ -351,64 +309,99 @@ func (s *Scanner) parseToken() (*Token, error) {
 			line:    s.currentLine,
 		}, nil
 	default:
-		if alphanumRe.MatchString(s.currChar) {
-			builder := strings.Builder{}
-			builder.WriteString(s.currChar)
-
-			for {
-				err := s.consume()
-
-				if err != nil && err != io.EOF {
-					return nil, reportError(s.currentLine, s.currentColumn, s.currChar, "error parsing Identifier")
-				}
-
-				// log.Printf("default: builder=%s, %s=%t", builder.String(), c, alphanumRe.MatchString(c))
-
-				if !alphanumRe.MatchString(s.currChar) {
-					break
-				}
-
-				builder.WriteString(s.currChar)
-
-				if err == io.EOF {
-					_ = s.consume()
-					break
-				}
-			}
-			lexeme := builder.String()
-
-			tokType, is_keyword := keywords[lexeme]
-			if !is_keyword {
-				tokType = TokenTypeIdentifier
-			}
-
-			return &Token{
-				tokType: tokType,
-				lexeme:  lexeme,
-				line:    s.currentLine,
-			}, nil
-		} else {
-			return nil, io.EOF
+		lexeme, err := s.parseIdentifier()
+		if err != nil {
+			return nil, err
 		}
+
+		tokType, is_keyword := keywords[lexeme]
+		if !is_keyword {
+			tokType = TokenTypeIdentifier
+		}
+
+		return &Token{
+			tokType: tokType,
+			lexeme:  lexeme,
+			line:    s.currentLine,
+		}, nil
 	}
 }
 
-func (s *Scanner) parseNumber(prefix string) (string, error) {
+func (s *Scanner) parseComment(isBlock bool) (string, error) {
 	builder := strings.Builder{}
-	builder.WriteString(prefix)
-	alreadyHasPeriod := strings.Contains(prefix, ".")
+	builder.WriteString(s.state.Head())
 	for {
-		err := s.consume()
+		c, err := s.state.GetNext()
 
-		if !strings.Contains(numberParts, s.currChar) {
+		if err != nil && err != io.EOF {
+			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "error parsing comment"))
+		}
+
+		if isBlock && c == "*" && s.state.Peek() == "/" {
+			s.state.Skip(2)
 			break
 		}
 
-		if err != nil && err != io.EOF {
-			return "", err
+		if !isBlock && c == "\n" {
+			break
 		}
 
-		if s.currChar == "." {
+		builder.WriteString(c)
+
+		if err == io.EOF {
+			break
+		}
+
+	}
+
+	return builder.String(), nil
+}
+
+func (s *Scanner) parseIdentifier() (string, error) {
+	builder := strings.Builder{}
+	builder.WriteString(s.state.Head())
+
+	for {
+		c, err := s.state.GetNext()
+		if err != nil {
+			return "", reportError(s.currentLine, s.currentColumn, builder.String(), "error parsing identifier")
+		}
+
+		if !alphanumRe.MatchString(c) {
+			break
+		}
+
+		builder.WriteString(c)
+	}
+
+	matched := builder.String()
+
+	if digitOrPeriod.MatchString(matched) {
+		return "", reportError(s.currentLine, s.currentColumn, matched, "invalid start of identifier")
+	}
+
+	return matched, nil
+
+}
+
+func (s *Scanner) parseNumber() (string, error) {
+	builder := strings.Builder{}
+	builder.WriteString(s.state.Head())
+
+	alreadyHasPeriod := s.state.Head() == "."
+
+	for {
+		c, err := s.state.GetNext()
+
+		if err != nil {
+			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "error parsing number"))
+		}
+
+		if !digitOrPeriod.MatchString(c) {
+			break
+		}
+
+		if c == "." {
 			if alreadyHasPeriod {
 				return "", reportError(s.currentLine, s.currentColumn, builder.String(), "invalid number, duplicate periods")
 			} else {
@@ -416,70 +409,37 @@ func (s *Scanner) parseNumber(prefix string) (string, error) {
 			}
 		}
 
-		builder.WriteString(s.currChar)
-
-		if err == io.EOF {
-			_ = s.consume()
-			break
-		}
+		builder.WriteString(c)
 	}
 
-	numStr := builder.String()
-	// TODO: figure out how to return numbers or strings inside the struct
-	_, err := strconv.ParseFloat(numStr, 64)
-
-	if err != nil {
-		return "", reportError(s.currentLine, s.currentColumn, numStr, "invalid number")
-	}
-
-	if strings.HasSuffix(numStr, ".") {
-		return "", reportError(s.currentLine, s.currentColumn, builder.String(), "number ends with a period")
-	}
 	// log.Printf("parse number: c %s, n %s, numstr %s", s.currChar, s.nextChar, numStr)
-	return numStr, nil
+	return builder.String(), nil
 }
 
 func (s *Scanner) parseString() (string, error) {
 	builder := strings.Builder{}
+
 	for {
-		err := s.consume()
-		if err != nil && err != io.EOF {
-			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "invalid string."))
-		}
-		//log.Printf("string] c={%s}, nextcurrent={%s}, line: %d\n", s.currChar, s.nextChar, s.currentLine)
-
-		if s.currChar == "\"" {
-			// consume closing quote
-			_ = s.consume()
-			break
-		}
-
-		builder.WriteString(s.currChar)
+		c, err := s.state.GetNext()
 
 		if err == io.EOF {
 			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "unterminated string."))
 		}
+
+		if err != nil {
+			return "", errors.Join(err, reportError(s.currentLine, s.currentColumn, builder.String(), "error parsing string"))
+		}
+
+		//log.Printf("string] c={%s}, nextcurrent={%s}, line: %d\n", s.currChar, s.nextChar, s.currentLine)
+
+		if c == "\"" {
+			break
+		}
+
+		builder.WriteString(c)
 	}
 
 	return builder.String(), nil
-}
-
-func (s *Scanner) consume() error {
-	r, _, err := s.reader.ReadRune()
-
-	s.currChar = s.nextChar
-	s.nextChar = string(r)
-	s.currentColumn += 1
-	if err != nil {
-		if err == io.EOF {
-			return err
-		} else {
-			return errors.Join(err, fmt.Errorf("invalid token %s, next=%s", s.currChar, s.nextChar))
-
-		}
-	}
-
-	return nil
 }
 
 func (s *Scanner) Scan() (*Token, error) {

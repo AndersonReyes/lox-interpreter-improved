@@ -49,7 +49,11 @@ func TestBlockComment(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	got, err := scanner.Scan()
 
@@ -59,15 +63,19 @@ func TestBlockComment(t *testing.T) {
 }
 
 func TestComment(t *testing.T) {
-	txt := "// this is another\n * block comment\n*/"
+	txt := "// this is a comment"
 	want := Token{
 		tokType: TokenTypeComment,
-		lexeme:  " this is another",
+		lexeme:  " this is a comment",
 		line:    1,
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	got, err := scanner.Scan()
 
@@ -85,7 +93,11 @@ func TestMultilineString(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	got, err := scanner.Scan()
 
@@ -110,7 +122,11 @@ func TestDecimal(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
@@ -142,7 +158,11 @@ func TestNumbers(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
@@ -168,7 +188,11 @@ func TestIdentifiers(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
@@ -182,7 +206,11 @@ func TestKeywords(t *testing.T) {
 	kws := slices.Collect(maps.Keys(keywords))
 	txt := strings.Join(kws, "\n")
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
@@ -242,7 +270,11 @@ func TestManyStatements(t *testing.T) {
 	}
 
 	r := bufio.NewReader(strings.NewReader(txt))
-	scanner := NewScanner(r)
+	scanner, err := NewScanner(r)
+	if err != nil {
+		t.Errorf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 

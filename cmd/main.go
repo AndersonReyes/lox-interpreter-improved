@@ -25,7 +25,11 @@ func runFile(file string) {
 	}
 
 	reader := bufio.NewReader(f)
-	scanner := lox.NewScanner(reader)
+	scanner, err := lox.NewScanner(reader)
+	if err != nil {
+		log.Fatalf("failed to init scanner: %s", err)
+
+	}
 
 	tokens, err := scanner.ScanAll()
 	if err != nil {
@@ -56,7 +60,11 @@ func runRepl() {
 			fmt.Println(line)
 			// TODO: creating a new reader for each line seems inefficient? can we do better
 			r := bufio.NewReader(strings.NewReader(line))
-			scanner := lox.NewScanner(r)
+			scanner, err := lox.NewScanner(r)
+			if err != nil {
+				log.Fatalf("failed to init scanner: %s", err)
+
+			}
 			tok, err := scanner.Scan()
 			if err != nil {
 				fmt.Printf("error interpreting line %s\n", line)
